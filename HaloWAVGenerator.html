@@ -1,0 +1,1547 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>Halo WAV Generator</title><script>
+/*
+ Wave file generator for GRC style Halo coils.
+
+ Generates WAV files to be 'played' on something that outputs audio signals on 3.5mm jack, that is connected to a GRC Halo coil, with the 3.5mm connector's L/R channel wired to Halo coil's ends.
+
+ Written by Vela Nanashi 2022.
+
+ Copyright/license: if you modify this other than just adding more patterns, please post the modification so others can use it on the grc nntp server, in group grc.health.tns, leave my name in this comment, and add your own too and say what you changed/improved.
+
+ If you are only sharing patterns with others you don't have to post the whole file, just the text for the pattern codes.
+*//*
+ Data structure description:
+ 
+ patterns:
+  name => array { minSamples, maxSamples, line0, ... , lineN }
+ 
+ lines are:
+  array { array { durationType, minSamples [, maxSamples[, upStepSamples, downStepSamples] }, array { whatType [, patternName] } }
+ 
+ durationType:
+  0 constant duration minSamples long
+  1 random between minSamples and maxSamples inclusive
+  2 sweep between minSamples and maxSamples by upStepSamples and then down again by downStepSamples, each time the line is called it applies currentStepSamples to that, if that is less than minSamples it changes currentStepSamples to upStepSamples, and applies that to minSamples and saves that to currentSamples and outputs that, if the value is more than maxSamples it instead sets currentStepSamples to downStepSamples, and applies that to maxSamples and saves that to currentSamples and outputs that.
+  3 pattern once (whatType = 4)
+  4 pattern minSamples times (whatType = 4)
+  
+ whatType:
+  0 delay/nothing
+  1 +
+  2 -
+  3 s
+  4 pattern
+ 
+ to allow s to function for complex things 0 duration lines will be processed too, but only s will be checked and result in s being flipped, patterns will not be entered if they have 0 duration, as the logic for patterns is that when the duration given them in samples runs out they stop their current line and pop back up to the previous pattern. s will also always start as + when generating WAV.
+ */
+
+var patterns = new Map();
+
+function parseNumber(string, defaultValue = 0)
+ {
+ let num = Number(string);
+ return isNaN(num) ? defaultValue : num;
+ }
+
+function parseDuration(string)
+ {
+ var duration = 0;
+ if(string.includes(':'))
+  {//duration is in hh:mm:ss:ms:samples form
+  let da = string.split(':');
+  let dal = da.length;
+  duration = hoursToSamples(parseNumber(da[0])) + minutesToSamples(parseNumber(da[1])) + (dal > 2 ? secondsToSamples(parseNumber(da[2])) + (dal > 3 ? millisecondsToSamples(parseNumber(da[3])) + (dal > 4 ? parseNumber(da[4]) : 0) : 0) : 0);
+  }
+  else if(string.includes('hz'))
+  {//duration is expressed in desired frequency, convert it to actual duration
+  duration = 8000/parseNumber(string.split('hz')[0],0.001);
+  }
+  else
+  {//duration is in milliseconds or -samples form
+  duration = parseNumber(string);
+  duration = (duration < 0) ? (-duration) : (duration*8);
+  }
+ if(duration < 0)
+  {//negative duration at this point is nonsense, set to 0
+  duration = 0;
+  }
+ return Math.floor(duration);
+ }
+
+function durationToString(duration)
+ {
+ if(isNaN(duration))
+  {
+  return '0';
+  }
+ return '' + Math.floor(duration/28800000).toString().padStart(2,0) + ':' + Math.floor((duration%28800000)/480000).toString().padStart(2,0) + ':' + Math.floor((duration%480000)/8000).toString().padStart(2,0) + ':' + Math.floor((duration%8000)/8).toString().padStart(3,0) + ':' + Math.floor(duration%8);
+ }
+
+function randomIntInclusive(min, max)
+ {
+ min = Math.ceil(min);
+ return Math.floor(Math.random() * (Math.floor(max) - min + 1) + min);
+ }
+
+function millisecondsToSamples(milliseconds)
+ {
+ return Math.floor(milliseconds * 8);
+ }
+
+function secondsToSamples(seconds)
+ {
+ return Math.floor(seconds * 8000);
+ }
+
+function minutesToSamples(minutes)
+ {
+ return Math.floor(minutes * 480000);
+ }
+
+function hoursToSamples(hours)
+ {
+ return Math.floor(hours * 28800000);
+ }
+
+function equalsIgnoreCase(s1, s2)
+ {
+ return s1.localeCompare(s2, undefined, { sensitivity: 'base' }) === 0; 
+ }
+
+function compilePatterns()
+ {
+ patterns = new Map();//let garbage collector deal with the old map
+ let compiledPatternsSelect = document.getElementById('compiledPatterns');
+ compiledPatternsSelect.length = 0;
+ let pcla = document.getElementById('patternCodes').value.split('\n');
+ pcla.push("");//push an empty line at the end in case user does not add one
+ let pclalen = pcla.length;
+ 
+ let currentPatternName = null;
+ let currentPattern = null;
+ let currentPatternMinDuration = null;
+ let currentPatternMaxDuration = null;
+ let hideCurrentPattern = null;
+ 
+ patterns.set('/select a pattern',[0,0]);
+ let npo = document.createElement("option");
+ npo.text = '/select a pattern';
+ compiledPatternsSelect.add(npo);
+ 
+ for(let i = 0; i < pclalen; ++i)
+  {
+  let line = pcla[i].trim().replace(/\s+/g,' ').split(' ');
+  let linelen = line.length;
+  let endPattern = 0;
+  if(linelen < 1)
+   {
+   endPattern = 1;
+   }
+   else if(line[0].length == 0)
+   {//empty line
+   endPattern = 1;
+   }
+  if(endPattern === 1)
+   {
+   if(currentPattern !== null)
+    {
+    currentPattern[0] = currentPatternMinDuration;
+    currentPattern[1] = currentPatternMaxDuration;
+    patterns.set(currentPatternName, currentPattern);
+    if(hideCurrentPattern !== true)
+     {
+     npo = document.createElement("option");
+     npo.text = currentPatternName;
+     }
+    compiledPatternsSelect.add(npo);
+    currentPatternName = null;
+    currentPattern = null;
+    currentPatternMinDuration = null;
+    currentPatternMaxDuration = null;
+    }
+   continue;
+   }
+  let lc = line[0];
+  if(equalsIgnoreCase(lc[0],'/'))
+   {//comment line
+   continue;
+   }
+  if(currentPattern === null)
+   {//we are looking for the start of a new pattern
+    //the string in line[0] is the name for it
+   currentPattern = [0, 0];
+   currentPatternName = line[0];
+   currentPatternMinDuration = 0;
+   currentPatternMaxDuration = 0;
+   hideCurrentPattern = false;
+   continue;//we do not care about the rest of the line
+   }
+  //at this point we know we are inside a pattern definition
+  let duration = [0,0];//no duration
+  let what = [0];//nothing
+  let wsp = null;
+  if(equalsIgnoreCase(lc,'r'))
+   {//r a b
+   if(linelen == 2)
+    {//r a = a
+    duration[0] = 0;
+    duration[1] = parseDuration(line[1]);
+    }
+    else if(linelen > 2)
+    {//r a b
+    let a = parseDuration(line[1]);
+    let b = parseDuration(line[2]);
+    wsp = 3;
+    if(a == b)
+     {//random between two equal numbers is constant
+     duration[0] = 0;
+     duration[1] = a;
+     currentPatternMinDuration += a;
+     currentPatternMaxDuration += a;
+     }
+     else if(a > b)
+     {//a and b are in wrong order for Math.random
+     duration[0] = 1;
+     duration[1] = b;
+     duration[2] = a;
+     currentPatternMinDuration += b;
+     currentPatternMaxDuration += a;
+     }
+     else
+     {
+     duration[0] = 1;
+     duration[1] = a;
+     duration[2] = b;
+     currentPatternMinDuration += a;
+     currentPatternMaxDuration += b;
+     }
+    }
+   }
+   else if(equalsIgnoreCase(lc[0],'s'))
+   {//s|sc|sd a b c d
+   if(linelen == 2)
+    {//s|sc|sd a = a
+    duration[0] = 0;
+    duration[1] = parseDuration(line[1]);
+    }
+    else if(linelen > 2)
+    {//s|sc|sd a b
+    let a = parseDuration(line[1]);
+    let b = parseDuration(line[2]);
+    wsp = 5;
+    if(a == b)
+     {//sweep between two equal numbers is constant
+     duration[0] = 0;
+     duration[1] = a;
+     currentPatternMinDuration += a;
+     currentPatternMaxDuration += a;
+     }
+     else
+     {
+     let c;
+     let d;
+     let absign;
+     let abdist;
+     if(a > b)
+      {
+      absign = -1;
+      abdist = a - b;  
+      currentPatternMinDuration += b;
+      currentPatternMaxDuration += a;      
+      }
+      else
+      {
+      absign = 1;
+      abdist = b - a;   
+      currentPatternMinDuration += a;
+      currentPatternMaxDuration += b;
+      }
+     if(lc.length == 2)
+      {
+      if(equalsIgnoreCase(lc[1],'c'))
+       {//sc a b c d
+       c = absign * abdist / ((linelen > 3) ? parseNumber(line[3],1) : 1);
+       d = (-absign) * abdist / ((linelen > 3) ? parseNumber(line[4],1) : 1);
+       }
+       else if(equalsIgnoreCase(lc[1],'d'))
+       {//sd a b c d
+       c = absign * ((linelen > 3) ? Math.max(parseDuration(line[3]),1) : 1);
+       d = (-absign) * ((linelen > 4) ? Math.max(parseDuration(line[4]),1) : 1);
+       }
+      }
+      else
+      {//s a b c d
+      c = (linelen > 3) ? Math.max(parseDuration(line[3]),1) : 1;
+      d = (linelen > 4) ? Math.max(parseDuration(line[4]),1) : 1;
+      c = absign * (abdist / (c > (a + b) ? ((2*c)/(a + b)) : 1));
+      d = (-absign) * (abdist / (d > (a + b) ? ((2*d)/(a + b)) : 1));
+      }
+     duration[0] = 2;
+     duration[1] = a;
+     duration[2] = b;
+     duration[3] = c;
+     duration[4] = d;
+     }
+    }
+   }
+   else if(equalsIgnoreCase(lc,'p'))
+   {//p name
+   if(linelen > 1)
+    {//p name
+    duration[0] = 3;
+    if(patterns.has(line[1]))
+     {//the pattern has already been declared as it should be so we may know its min and max duration, assuming the things it relies on for that are also in the proper order, if not the min and max will be wrong.
+     let subpattern = patterns.get(line[1]);
+     currentPatternMinDuration += subpattern[0];
+     currentPatternMaxDuration += subpattern[1];
+     }
+    what[0] = 4;
+    what[1] = line[1];
+    }
+   }
+   else if(equalsIgnoreCase(lc,'x'))
+   {//x number name
+   if(linelen > 2)
+    {//x number name
+    let number = parseNumber(line[1]);
+    if(number < 2)
+     {//nonsense count, convert to p name
+     duration[0] = 3;
+     }
+     else
+     {
+     duration[0] = 4;
+     duration[1] = Math.floor(number);//needs to be non float
+     }
+    if(patterns.has(line[2]))
+     {//the pattern has already been declared as it should be so we may know its min and max duration, assuming the things it relies on for that are also in the proper order, if not the min and max will be wrong.
+     let subpattern = patterns.get(line[2]);
+     currentPatternMinDuration += subpattern[0] * duration[1];
+     currentPatternMaxDuration += subpattern[1] * duration[1];
+     }
+    what[0] = 4;
+    what[1] = line[2];   
+    }
+   }
+   else if(equalsIgnoreCase(lc,'h'))
+   {//h hide pattern
+   hideCurrentPattern = true;
+   continue;//this line should do nothing else
+   }
+   else
+   {//not one of the known special durations try to parse as simple duration
+   let a = parseDuration(line[0]);
+   wsp = 1;
+   duration[0] = 0;
+   duration[1] = a;
+   currentPatternMinDuration += a;
+   currentPatternMaxDuration += a;
+   }
+  if(wsp !== null)
+   {
+   if(wsp < linelen)
+    {//we are supposed to look for a what
+    lc = line[wsp];
+    if(equalsIgnoreCase(lc,'+'))
+     {
+     what[0] = 1;
+     }
+     else if(equalsIgnoreCase(lc,'-'))
+     {
+     what[0] = 2;
+     }
+     else if(equalsIgnoreCase(lc,'s'))
+     {
+     what[0] = 3;
+     }
+     else if(equalsIgnoreCase(lc,'p') && ((wsp+1) < linelen))
+     {
+     what[0] = 4;
+     what[1] = line[wsp+1];
+     }
+    }
+   }
+  currentPattern.push([duration, what]);
+  }
+ }
+
+function getSelectedPatternName()
+ {
+ let compiledPatternsSelect = document.getElementById('compiledPatterns')
+ return compiledPatternsSelect.options[compiledPatternsSelect.options.selectedIndex].text;
+ }
+
+function patternSelectionChanged()
+ {
+ let selectedPatternName = getSelectedPatternName();
+ if(!patterns.has(selectedPatternName))
+  {
+  return;
+  }
+ let pattern = patterns.get(selectedPatternName);
+ document.getElementById('minduration').innerHTML = durationToString(pattern[0]);
+ document.getElementById('maxduration').innerHTML = durationToString(pattern[1]);
+ document.getElementById('duration').value = durationToString(pattern[1]);
+ }
+
+function writeString(view, offset, string)
+ {
+ for (let i = 0; i < string.length; i++)
+  {
+  view.setUint8(offset + i, string.charCodeAt(i));
+  }
+ }
+
+function generateSelectedPatternAsWAV()
+ {
+ let duration = parseDuration(document.getElementById('duration').value);
+ let patternName = getSelectedPatternName();
+ if((duration == 0) || (!patterns.has(patternName)))
+  {//we have been asked to generate a 0 sample wave, that is pointless, abort
+  return;
+  }
+ let pattern = patterns.get(patternName);
+ let patternlen = pattern.length;
+ if(patternlen < 3)
+  {//this pattern has no lines, no point generating it, abort
+  return;
+  }
+ //create WAV file and write header
+ let view = new DataView(new ArrayBuffer(44 + duration * 4));//2 channels 2 bytes
+ /* RIFF identifier */
+ writeString(view, 0, 'RIFF');
+ /* RIFF chunk length */
+ view.setUint32(4, 36 + duration * 4, true);
+ /* RIFF type */
+ writeString(view, 8, 'WAVE');
+ /* format chunk identifier */
+ writeString(view, 12, 'fmt ');
+ /* format chunk length */
+ view.setUint32(16, 16, true);
+ /* sample format (raw) */
+ view.setUint16(20, 1, true);
+ /* channel count */
+ view.setUint16(22, 2, true);
+ /* sample rate */
+ view.setUint32(24, 8000, true);
+ /* byte rate (sample rate * block align) */
+ view.setUint32(28, 32000, true);
+ /* block align (channel count * bytes per sample) */
+ view.setUint16(32, 4, true);
+ /* bits per sample */
+ view.setUint16(34, 16, true);
+ /* data chunk identifier */
+ writeString(view, 36, 'data');
+ /* data chunk length */
+ view.setUint32(40, duration * 4, true);
+ 
+ //outputting samples to wave file
+ let stack = [];
+ let sweepStates = new Map();
+ let plus = 0x7FFF8000;
+ let minus = 0x80007FFF;
+ let sstate = plus;
+ let i = 0;
+ let j = 2;
+ let k = 0;
+ let dt = -1;
+ let wt = -1;
+ let patternSamplesLeft = duration;
+ let samplesLeft = 0;//for other DurationTypes
+ let requestedRuns = 0;//for durationType 3 and 4
+ let currentLine;
+ for(; i < duration; ++i)
+  {
+  if(k >= patternSamplesLeft)
+   {//we need to terminate this pattern, its allotted samples are spent, and it has not been told to run a specific number of times
+   samplesLeft = 0;
+   }
+  if(samplesLeft < 1)
+   {
+   dt = -1;
+   }
+  if(dt == -1)
+   {
+   if(j >= patternlen)
+    {
+    j = 2;
+    if((stack.length > 0) && ((requestedRuns == 1) || (k >= patternSamplesLeft)))
+     {//we did our last run, or ran out of samples, and we are a sub pattern
+     let parentPattern = stack.pop();
+     pattern = parentPattern[0];
+     patternlen = parentPattern[1];
+     j = parentPattern[2];
+     patternSamplesLeft = parentPattern[3];
+     requestedRuns = parentPattern[4];
+     k = parentPattern[5] + k;//+ k spends the samples we used for the parent too.
+     patternName = parentPattern[6];
+     wt = -1;
+     dt = -1;
+     --i;//so that ++i from for loop cancels out since we will use continue
+     continue;
+     }
+     else if(requestedRuns > 0)
+     {//only decrement requestedRuns if we have one
+     --requestedRuns;
+     }
+    }
+   currentLine = pattern[j];
+   ++j;
+   wt = currentLine[1][0];
+   dt = currentLine[0][0];
+   if(dt == 0)
+    {//simple time
+    samplesLeft = currentLine[0][1];
+    }
+    else if(dt == 1)
+    {//r a b
+    samplesLeft = randomIntInclusive(currentLine[0][1], currentLine[0][2]);
+    }
+    else if(dt == 2)
+    {//s a b c d
+    let sweepkey = patternName + j;
+    if(!sweepStates.has(sweepkey))
+     {//current duration, 0 = a to b, 1 = b to a
+     sweepStates.set(sweepkey, [currentLine[0][1], 0]);
+     }
+    let sweepstate = sweepStates.get(sweepkey);
+    samplesLeft = Math.round(sweepstate[0]);
+    if(sweepstate[1] == 0)
+     {//moving from a to b
+     let sweepstep = currentLine[0][3];
+     sweepstate[0] += sweepstep;
+     if(((sweepstep < 0) && (sweepstate[0] <= currentLine[0][2])) || ((sweepstep > 0) && (sweepstate[0] >= currentLine[0][2])))
+      {
+      sweepstate[0] = currentLine[0][2];
+      sweepstate[1] = 1;//next update we go from b to a
+      }
+     }
+     else
+     {//moving from b to a
+     let sweepstep = currentLine[0][4];
+     sweepstate[0] += sweepstep;
+     if(((sweepstep < 0) && (sweepstate[0] <= currentLine[0][1])) || ((sweepstep > 0) && (sweepstate[0] >= currentLine[0][1])))
+      {
+      sweepstate[0] = currentLine[0][1];
+      sweepstate[1] = 0;//next update we go from a to b
+      }
+     }
+    }
+   if(wt == 3)
+    {//always do s so it flips properly
+    if(sstate == plus)
+     {
+     sstate = minus;
+     wt = 1;
+     }
+     else
+     {
+     sstate = plus;
+     wt = 2;
+     }
+    }
+   if((samplesLeft == 0) && (dt < 3))
+    {//whatever this line is doing takes 0 samples, abort at this point (after letting s state change as needed if this was wt 3)
+    --i;//so that ++i from for loop cancels out since we will use continue
+    continue;
+    }
+   if(wt == 4)
+    {//push needed state onto stack and enter the other pattern
+    let subPatternName = currentLine[1][1];
+    if(patterns.has(subPatternName))
+     {
+     let subPattern = patterns.get(subPatternName);
+     let subPatternLen = subPattern.length;
+     if(subPatternLen > 2)
+      {
+      stack.push([pattern,patternlen,j,patternSamplesLeft,requestedRuns,k, patternName]);
+      patternName = subPatternName;
+      pattern = subPattern;
+      patternlen = subPatternLen;
+      patternSamplesLeft -= k;
+      //check what type of sub pattern we are doing
+      if(dt == 3)
+       {//p name
+       requestedRuns = 1;
+       }
+       else if(dt == 4)
+       {//x n name
+       requestedRuns = currentLine[0][1];
+       }
+       else
+       {//duration p name
+       patternSamplesLeft = (samplesLeft > patternSamplesLeft) ? patternSamplesLeft : samplesLeft;
+       requestedRuns = 0;
+       samplesLeft = 0;//dt 3 & 4 already has samplesLeft == 0
+       }
+      dt = -1;
+      wt = -1;
+      j = 2;
+      k = 0;
+      --i;//so that ++i from for loop cancels out since we will use continue
+      continue;//get sub pattern loaded up 
+      }
+     }
+    wt = 0;//pattern that does not exist acts as just delay (all others continued so this line is not reached by them)
+    }
+   }
+  --samplesLeft;
+  ++k;
+  view.setUint32(44 + (i*4), wt == 0 ? 0 : wt == 1 ? plus : minus, true);
+  }
+ patternName = getSelectedPatternName();//since it might be replaced while running
+ //create a link for/with the blob
+ let ao = document.getElementById('lastGeneratedPatternPlayback');
+ let link = document.getElementById('lastGeneratedPatternDownload');
+ (window.URL || window.webkitURL).revokeObjectURL(ao.src);
+ let url = (window.URL || window.webkitURL).createObjectURL(new Blob([view],{type : 'audio/wav'}));
+ view = null;
+ ao.src = url;
+ link.href = url;
+ url = null;
+ link.download = patternName + '.wav';
+ link.innerHTML = link.download;//give the anchor a readable name
+ link.type = 'audio/wav';//make sure we know it is audio/wav
+ 
+ //maybe click it for people:
+ if(document.getElementById('forceDownload').checked)
+  {
+  link.click();
+  }
+ if(document.getElementById('autoPlay').checked)
+  {
+  ao.play();
+  }
+ loopPlaybackChanged();//since sometimes loop status is forgotten.
+ }
+
+function hz2ms()
+ {
+ document.getElementById('ms').value = (1000/parseNumber(document.getElementById('hz').value,0)).toFixed(3);
+ }
+
+function ms2hz()
+ {
+ document.getElementById('hz').value = (1000/parseNumber(document.getElementById('ms').value,0)).toFixed(3);
+ }
+
+function setDurationTo(min)
+ {
+ document.getElementById('duration').value = durationToString(minutesToSamples(parseNumber(min)));
+ }
+
+function addDuration(duration)
+ {
+ let dd = document.getElementById('duration');
+ let d = parseDuration(dd.value) + parseDuration(duration);
+ dd.value = durationToString(d < 0 ? 0 : d);
+ }
+
+function subtractDuration(duration)
+ {
+ let dd = document.getElementById('duration');
+ let d = parseDuration(dd.value) - parseDuration(duration);
+ dd.value = durationToString(d < 0 ? 0 : d);
+ }
+
+function setMinDuration()
+ {
+ document.getElementById('duration').value = document.getElementById('minduration').innerHTML;
+ }
+
+function setMaxDuration()
+ {
+ document.getElementById('duration').value = document.getElementById('maxduration').innerHTML; 
+ }
+
+function setDurationXAverage(x)
+ {
+ let selectedPatternName = getSelectedPatternName();
+ if(!patterns.has(selectedPatternName))
+  {
+  return;
+  }
+ let pattern = patterns.get(selectedPatternName);
+ document.getElementById('duration').value = durationToString(Math.floor((pattern[0] +pattern[1])*parseNumber(x)/2));
+ }
+ 
+function loopPlaybackChanged()
+ {
+ document.getElementById('lastGeneratedPatternPlayback').loop = document.getElementById('loopPlayback').checked;
+ }
+ 
+</script><style>
+* { background: black; color: white; font: 32px Courier New, Courier, monospace; margin: 0; padding: 0; border: 0; }
+html, div { margin: 0; padding: 0; border: 0; }
+.b { cursor: pointer; background: #333333; border: solid 1px white; }
+input, select, textarea { border: solid 1px white; }
+#compiledPatterns { width: 1000px; }
+#duration, #hz, #ms { text-align: right; width: 300px; }
+#minduration , #maxduration { background: #330033; }
+#forceDownload { }
+audio { width: 50%; }
+#instructions, #patternCodes { width: 100%; height: 512px; }
+p { margin: 0 0 1ch 0; padding: 0; border: 0; }
+p:first-child { padding-top: 1px; }
+p:last-child { margin-bottom: 0; }
+
+.sb { display: inline-block; position: relative; border: 1px #fff solid; background: #333; width: 99.5%; padding-left: 0.25%; }
+.sb input { z-index: 1; opacity: 0; position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; }
+.sb input + * { display: none; }
+.sb input:checked + * { display: block; position: relative; z-index: 2; background: #000; }
+</style><body onload='compilePatterns(); loopPlaybackChanged();'>
+<div class='sb'>Instructions: (click to show)<input type="checkbox"/><div><textarea id='instructions' readonly>
+/*
+ Wave file generator for GRC style Halo coils, by Vela Nanashi 2022.
+
+ Generates WAV files to be 'played' on something that outputs audio signals on 3.5mm jack, that is connected to a GRC Halo coil, with the 3.5mm connector's L/R channel wired to Halo coil's ends.
+ 
+ *//*
+ 
+ The generated files will have the left and right channels have opposite values, or 0 on both channels, to generate the strongest possible field inside the Halo coils.
+ 
+ The sample rate will be limited to 8000hz. This means 1ms is 8 samples.
+ 
+ All leading white space on each line of the Pattern Codes will be stripped, use them if you want to format things to be clearer.
+ 
+ A line with only white space and a new line will terminate the previously started pattern, or just be empty space, feel free to waste space if it makes things clearer for you.
+ 
+ Any line starting with no or some white space followed by a / will be ignored, but does not count as the end of a pattern. You can use these to add comment lines.
+ 
+ Each component of a line of code is separated by white space, each type of line has a certain number of components it expects, any extra that follow after that will be ignored, and can be used as comments.
+ 
+ The format for patterns:
+ name [comment until end of line]
+  duration [what [comment until end of line]]
+ 
+ name format:
+ must not contain white space or contain /.
+ 
+ duration format:
+ 
+ number
+  if the number is positive it will be treated as milliseconds, if negative it will be treated as samples, it can be floating point, milliseconds will be converted to samples by multiplying by 8, while the negative number will be negated to get the positive sample count, both kinds of values will be rounded down to an integer after converting to samples.
+
+ hh:mm:ss:ms:samples
+  only the first colon is needed, you can write: hours:,
+  hours:minutes, then optionally add :seconds and then :milliseconds and finally :samples.
+  any of the hours, minutes, seconds, milliseconds and samples can be a floating point value, integer, even a negative ones, or not a number (including no characters) this will multiply with the proper conversion to samples and then be rounded down to the nearest integer, if the value is below 0 the line will be treated as if it was given the duration 0.
+  examples:
+   :3:20 means 3min 20sec
+   1.5: means 1hour 30min
+   ::1 means 1sec
+   :::10 means 10ms
+   ::::8 means 8samples or 1ms
+   :1::5 means 1min 5ms
+ 
+ numberhz
+  will convert hz to ms
+  example:
+   5hz means 200ms
+ 
+ r a b
+  randomly generate a delay in samples between a and b, a and b will be in either in milliseconds or hh:mm:ss:ms:samples format (see above), the a and b delays are inclusive.
+ 
+ s a b c d
+  a, b, c and d are either in milliseconds, or hh:mm:ss:ms:samples format (see above)
+  a or b is the minimum or maximum (order can be reversed) duration that this line will generate when visited once, c is how long you want the sweep from a to b to take, if it is less than or equal to a + b you will generate a the first time, b the second time the line is visited. d is how long you want it to take to return from b to a, if this is less than or equal to a, it will instantly go to a after it has been b once, so if you write 's 10 20 0 0' the line will generate 10 20 10 when visited three times, if visited four times it will generate 10 20 10 20.
+ 
+ sc a b c d
+  a and b are either in milliseconds or hh:mm:ss:ms:samples format (see above)  
+  c and d are how many steps you want to take between a and b and b and a respectively.
+ 
+ sd a b c d
+  a, b, c and d are either in milliseconds or hh:mm:ss:ms:samples format (see above)
+  a or b is the minimum or maximum (order can be reversed) duration that this line will generate when visited once, c and d are how big the steps are that you want to take on your way from a to b and b to a respectively.
+ 
+ p name
+  includes a pattern with name once it may be cut if the parent pattern's time runs out
+ 
+ x number name
+  includes a pattern with name number times, they may be cut if the parent pattern's time runs out. If number is less than 2, it will convert it internally into p name.
+ 
+ h
+  hides the pattern it is included inside from the drop down list, allowing pattern makers to only show the patterns they want users to use in the list of patterns, this way you don't have to worry about how many subpatterns you need to accurately describe the pattern you want. 
+ 
+ what format:
+ +
+  channel 1 output + 0x7FFF while channel 2 output - 0x8000
+
+ -
+  channel 1 output - 0x8000 while channel 2 output + 0x7FFF
+
+ s
+  is either + or -, always opposite of last time
+  to make pulses that change each time you need 3 s in a row:
+  0 s
+  1 s
+  1 s
+  
+  this would flip the sign of s, then output 1millisecond of s, then 1millisecond of the opposite value of s
+
+ p name
+  will insert the pattern with name repeating until it runs out of the given duration, or the parent pattern runs out of its duration
+ 
+ d     or nothing
+  delay, do nothing for this amount of time
+ 
+ The compiler, if you can even call it that, will assume any nonsense it meets is a comment and just ignore it, moving on to the next thing it can understand, it will not tell you about any of the encountered nonsense, it does not care about any of it, I know that may cause some issues with debugging the pattern codes, and I am sorry about that, but making the pattern compiler output sensible information is more work than I can handle right now.
+ 
+ You also need to declare patterns that other patterns are going to use before the pattern they are used in, or the estimation of how long a pattern will take will end up wrong. Also your pattern names need to be exactly the same when you use them in other patterns or those lines will do nothing.
+ 
+ Beware that you can create infinite loops if you write the wrong thing in the pattern codes, there is very little sanity checking about how patterns are included in each other, so be careful, or you will lock up your tab when generating the wave file.
+ 
+ One more note that may be helpful to think about:
+ 
+ If you want 2ms pulse (1ms + and 1ms -) to occur at the true rate of 10hz, you need to subtract the pulse duration from the delay duration:
+ 
+ 10hz
+  0 s
+  1 s
+  1 s
+  98
+ 
+ 10hz10min
+  00:10 p 10hz
+ 
+ The below definition of the pattern p now allows easier declaration of pulses with delay included, as long as the total delay with pulse length is less than or equal to 24 hours.
+ 
+ p
+ h
+ 0 s
+ 1 s
+ 1 s
+ 24:
+ 
+ So 10hz is now possible to write as:
+ 
+ 10hz
+  100 p p
+ 
+ Be sure that you save the Pattern Codes you write into a text file somewhere, as this html file does not in any way have the ability to remember them for you.
+ 
+ You can also edit the html file to keep your pattern codes in it.
+ */</textarea></div></div>
+<p/>
+<div class='sb'>Pattern Codes: (click to show)<input type="checkbox"/><div><textarea id='patternCodes'>
+/p is a single polarity switching 2ms pulse followed by a 1 hour delay, it can be included in any other pattern, prefixed by how long the whole thing is supposed to last, saving on writing more complicated codes and figuring out the math for each pulse. It can also be changed to have more or less than 2ms total pulse length, by changing 1 s below to something else.
+
+p
+ h
+ 0 s
+ 1 s
+ 1 s
+ 24:
+
+/0.5hz to 100hz is 0.5hz steps
+0.5hz
+ 0.5hz p p
+
+1hz
+ 1hz p p
+
+1.5hz
+ 1.5hz p p
+
+2hz
+ 2hz p p
+
+2.5hz
+ 2.5hz p p
+
+3hz
+ 3hz p p
+
+3.5hz
+ 3.5hz p p
+
+4hz
+ 4hz p p
+ 
+4.5hz
+ 4.5hz p p
+
+5hz
+ 5hz p p
+ 
+5.5hz
+ 5.5hz p p
+ 
+6hz
+ 6hz p p
+
+6.5hz
+ 6.5hz p p
+
+7hz
+ 7hz p p
+
+7.5hz
+ 7.5hz p p
+
+8hz
+ 8hz p p
+
+8.5hz
+ 8.5hz p p
+ 
+9hz
+ 9hz p p
+
+9.5hz
+ 9.5hz p p
+ 
+10hz
+ 10hz p p
+
+10.5hz
+ 10.5hz p p
+
+11hz
+ 11hz p p
+
+11.5hz
+ 11.5hz p p
+ 
+12hz
+ 12hz p p
+
+12.5hz
+ 12.5hz p p
+
+13hz
+ 13hz p p
+
+13.5hz
+ 13.5hz p p
+
+14hz
+ 14hz p p
+
+14.5hz
+ 14.5hz p p
+
+15hz
+ 15hz p p
+ 
+15.5hz
+ 15.5hz p p
+ 
+16hz
+ 16hz p p
+
+16.5hz
+ 16.5hz p p
+
+17hz
+ 17hz p p
+
+17.5hz
+ 17.5hz p p
+
+18hz
+ 18hz p p
+
+18.5hz
+ 18.5hz p p
+ 
+19hz
+ 19hz p p
+
+19.5hz
+ 19.5hz p p
+
+20hz
+ 20hz p p
+
+20.5hz
+ 20.5hz p p
+
+21hz
+ 21hz p p
+
+21.5hz
+ 21.5hz p p
+
+22hz
+ 22hz p p
+
+22.5hz
+ 22.5hz p p
+
+23hz
+ 23hz p p
+
+23.5hz
+ 23.5hz p p
+
+24hz
+ 24hz p p
+ 
+24.5hz
+ 24.5hz p p
+
+25hz
+ 25hz p p
+ 
+25.5hz
+ 25.5hz p p
+ 
+26hz
+ 26hz p p
+
+26.5hz
+ 26.5hz p p
+
+27hz
+ 27hz p p
+
+27.5hz
+ 27.5hz p p
+
+28hz
+ 28hz p p
+
+28.5hz
+ 28.5hz p p
+ 
+29hz
+ 29hz p p
+
+29.5hz
+ 29.5hz p p
+
+30hz
+ 30hz p p
+
+30.5hz
+ 30.5hz p p
+
+31hz
+ 31hz p p
+
+31.5hz
+ 31.5hz p p
+
+32hz
+ 32hz p p
+
+32.5hz
+ 32.5hz p p
+
+33hz
+ 33hz p p
+
+33.5hz
+ 33.5hz p p
+
+34hz
+ 34hz p p
+ 
+34.5hz
+ 34.5hz p p
+
+35hz
+ 35hz p p
+ 
+35.5hz
+ 35.5hz p p
+ 
+36hz
+ 36hz p p
+
+36.5hz
+ 36.5hz p p
+
+37hz
+ 37hz p p
+
+37.5hz
+ 37.5hz p p
+
+38hz
+ 38hz p p
+
+38.5hz
+ 38.5hz p p
+ 
+39hz
+ 39hz p p
+
+39.5hz
+ 39.5hz p p
+
+40hz
+ 40hz p p
+
+40.5hz
+ 40.5hz p p
+
+41hz
+ 41hz p p
+
+41.5hz
+ 41.5hz p p
+
+42hz
+ 42hz p p
+
+42.5hz
+ 42.5hz p p
+
+43hz
+ 43hz p p
+
+43.5hz
+ 43.5hz p p
+
+44hz
+ 44hz p p
+ 
+44.5hz
+ 44.5hz p p
+
+45hz
+ 45hz p p
+ 
+45.5hz
+ 45.5hz p p
+ 
+46hz
+ 46hz p p
+
+46.5hz
+ 46.5hz p p
+
+47hz
+ 47hz p p
+
+47.5hz
+ 47.5hz p p
+
+48hz
+ 48hz p p
+
+48.5hz
+ 48.5hz p p
+ 
+49hz
+ 49hz p p
+
+49.5hz
+ 49.5hz p p
+
+50hz
+ 50hz p p
+
+50.5hz
+ 50.5hz p p
+
+51hz
+ 51hz p p
+
+51.5hz
+ 51.5hz p p
+
+52hz
+ 52hz p p
+
+52.5hz
+ 52.5hz p p
+
+53hz
+ 53hz p p
+
+53.5hz
+ 53.5hz p p
+
+54hz
+ 54hz p p
+ 
+54.5hz
+ 54.5hz p p
+
+55hz
+ 55hz p p
+ 
+55.5hz
+ 55.5hz p p
+ 
+56hz
+ 56hz p p
+
+56.5hz
+ 56.5hz p p
+
+57hz
+ 57hz p p
+
+57.5hz
+ 57.5hz p p
+
+58hz
+ 58hz p p
+
+58.5hz
+ 58.5hz p p
+ 
+59hz
+ 59hz p p
+
+59.5hz
+ 59.5hz p p
+
+60hz
+ 60hz p p
+
+60.5hz
+ 60.5hz p p
+
+61hz
+ 61hz p p
+
+61.5hz
+ 61.5hz p p
+
+62hz
+ 62hz p p
+
+62.5hz
+ 62.5hz p p
+
+63hz
+ 63hz p p
+
+63.5hz
+ 63.5hz p p
+
+64hz
+ 64hz p p
+ 
+64.5hz
+ 64.5hz p p
+
+65hz
+ 65hz p p
+ 
+65.5hz
+ 65.5hz p p
+ 
+66hz
+ 66hz p p
+
+66.5hz
+ 66.5hz p p
+
+67hz
+ 67hz p p
+
+67.5hz
+ 67.5hz p p
+
+68hz
+ 68hz p p
+
+68.5hz
+ 68.5hz p p
+ 
+69hz
+ 69hz p p
+
+69.5hz
+ 69.5hz p p
+
+70hz
+ 70hz p p
+
+70.5hz
+ 70.5hz p p
+
+71hz
+ 71hz p p
+
+71.5hz
+ 71.5hz p p
+
+72hz
+ 72hz p p
+
+72.5hz
+ 72.5hz p p
+
+73hz
+ 73hz p p
+
+73.5hz
+ 73.5hz p p
+
+74hz
+ 74hz p p
+ 
+74.5hz
+ 74.5hz p p
+
+75hz
+ 75hz p p
+ 
+75.5hz
+ 75.5hz p p
+ 
+76hz
+ 76hz p p
+
+76.5hz
+ 76.5hz p p
+
+77hz
+ 77hz p p
+
+77.5hz
+ 77.5hz p p
+
+78hz
+ 78hz p p
+
+78.5hz
+ 78.5hz p p
+ 
+79hz
+ 79hz p p
+
+79.5hz
+ 79.5hz p p
+ 
+80hz
+ 80hz p p
+
+80.5hz
+ 80.5hz p p
+
+81hz
+ 81hz p p
+
+81.5hz
+ 81.5hz p p
+
+82hz
+ 82hz p p
+
+82.5hz
+ 82.5hz p p
+
+83hz
+ 83hz p p
+
+83.5hz
+ 83.5hz p p
+
+84hz
+ 84hz p p
+ 
+84.5hz
+ 84.5hz p p
+
+85hz
+ 85hz p p
+ 
+85.5hz
+ 85.5hz p p
+ 
+86hz
+ 86hz p p
+
+86.5hz
+ 86.5hz p p
+
+87hz
+ 87hz p p
+
+87.5hz
+ 87.5hz p p
+
+88hz
+ 88hz p p
+
+88.5hz
+ 88.5hz p p
+ 
+89hz
+ 89hz p p
+
+89.5hz
+ 89.5hz p p
+
+90hz
+ 90hz p p
+
+90.5hz
+ 90.5hz p p
+
+91hz
+ 91hz p p
+
+91.5hz
+ 91.5hz p p
+
+92hz
+ 92hz p p
+
+92.5hz
+ 92.5hz p p
+
+93hz
+ 93hz p p
+
+93.5hz
+ 93.5hz p p
+
+94hz
+ 94hz p p
+ 
+94.5hz
+ 94.5hz p p
+
+95hz
+ 95hz p p
+ 
+95.5hz
+ 95.5hz p p
+ 
+96hz
+ 96hz p p
+
+96.5hz
+ 96.5hz p p
+
+97hz
+ 97hz p p
+
+97.5hz
+ 97.5hz p p
+
+98hz
+ 98hz p p
+
+98.5hz
+ 98.5hz p p
+ 
+99hz
+ 99hz p p
+
+99.5hz
+ 99.5hz p p
+
+100hz
+ 100hz p p
+
+/approximation of beta burst
+B5
+ h
+ x 5 25hz
+ 24:
+
+BetaBurst1hz
+ 1hz p B5
+
+BetaBurst0.5hz
+ 0.5hz p B5
+
+AlphaBurst
+ x 5 12.5hz
+ 600
+
+5x38hz
+ h
+ x 5 38hz
+ :24
+
+3x38hz
+ h
+ x 3 38hz
+ :24
+
+38hzBurst1hz
+ 1hz p 5x38hz
+
+38hzBurst5hz
+ 5hz p 3x38hz
+
+iTBS38hz
+ x 10 38hzBurst5hz
+ 8000
+
+38hzBurst5hz1hz
+ x 3 38hzBurst5hz
+ 400
+
+/approximation of iTBS, 8000hz does not allow 50us pulses, we use 2ms pulses
+
+iTBSBurst
+ h
+ x 3 50hz
+ 140
+
+iTBS 
+ x 10 iTBSBurst
+ 8000
+
+/batbatbatd
+
+bat
+ h
+ p 25hz
+ p 12.5hz
+ p 5hz
+
+batbatbatd
+ x 3 bat
+ p 1hz
+
+/gbatgbatgbatd
+
+gbat
+ h
+ p 50hz
+ p bat
+
+gbatgbatgbatd
+ x 3 gbat
+ p 1hz
+
+/random patterns
+delta0.5hzTo2.5hzRandom
+ r 0.5hz 2.5hz p p
+
+/sweep patterns
+/smr ramping up from 13.5hz to 14.5hz in half a minute and back up in half a minute, select duration for it by editing the duration field or pressing one of the buttons for one of the fixed times after picking it in the dropdown.
+smr
+ s 13.5hz 14.5hz :0.5 :0.5 p p
+
+5hzTo1hzIn30min
+ h
+ s 5hz 1hz :30 0 p p
+
+1hzTo0.5hzIn30min
+ h
+ s 1hz 0.5hz :30 0 p p
+
+5hzTo0.5hzSleepProgram1Hour
+ :30 p 5hzTo1hzIn30min
+ :30 p 1hzTo0.5hzIn30min
+
+/remember that patterns need an empty line that is not a comment under them to know they have ended</textarea></div></div>
+<p/>
+<p><span onclick='compilePatterns();' class='b'>Compile Patterns</span></p>
+<p>Compiled Patterns:<select id='compiledPatterns' onchange='patternSelectionChanged();'></select></p>
+<p>Selected pattern takes between <span onclick='setMinDuration();' id='minduration'>00:00:00:000:0</span> and <span onclick='setMaxDuration();' id='maxduration'>00:00:00:000:0</span>, to run once, select how long you want to the wave file to be, below.</p>
+<p>Duration:<input id='duration' type='text' value='00:00:00:000:0'/> format hh:mm:ss:ms:samples.</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span onclick='addDuration("1:");' class='b'>+</span><span onclick='subtractDuration("1:");' class='b'>-</span>:<span onclick='addDuration(":1");' class='b'>+</span><span onclick='subtractDuration(":1");' class='b'>-</span>:<span onclick='addDuration("::1");' class='b'>+</span><span onclick='subtractDuration("::1");' class='b'>-</span>:<span onclick='addDuration(":::1");' class='b'>+</span><span onclick='subtractDuration(":::1");' class='b'>-</span>:<span onclick='addDuration("::::1");' class='b'>+</span><span onclick='subtractDuration("::::1");' class='b'>-</span> <span onclick='setDurationTo(0);' class='b'>0</span></p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span onclick='setDurationTo(1);' class='b'>1 min</span> <span onclick='setDurationTo(10);' class='b'>10 min</span> <span onclick='setDurationTo(30);' class='b'>30 min</span> <span onclick='setDurationTo(60);' class='b'>1 hour</span></p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span onclick='setDurationXAverage(10);' class='b'>x10</span> <span onclick='setDurationXAverage(50);' class='b'>x50</span> <span onclick='setDurationXAverage(100);' class='b'>x100</span> <span onclick='setDurationXAverage(500);' class='b'>x500</span> <span onclick='setDurationXAverage(1000);' class='b'>x1000</span> <span onclick='setDurationXAverage(5000);' class='b'>x5000</span> <span onclick='setDurationXAverage(10000);' class='b'>x10000</span> <span onclick='setDurationXAverage(50000);' class='b'>x50000</span></p>
+<p><span onclick='generateSelectedPatternAsWAV();' class='b'>Generate Pattern as WAVE file</span></p>
+<p>Converter between hz and ms:</p>
+<p>hz:<input id='hz' type='text' value='10.500'/> <span onclick='hz2ms();' class='b'>-&gt;</span> <span onclick='ms2hz();' class='b'>&lt;-</span> ms:<input id='ms' type='text' value='95.238'/></p>
+<p>Last Generated Pattern Audio:</p>
+<p>Playback: <audio controls id='lastGeneratedPatternPlayback'></audio><input type='checkbox' id='loopPlayback' onchange='loopPlaybackChanged();' checked='true'/><label for='loopPlayback'> Loop Playback.</label> <input type='checkbox' id='autoPlay'/><label for='autoPlay'> Auto Play.</label></p>
+<p>Download: <a id='lastGeneratedPatternDownload'></a> <input type='checkbox' id='forceDownload'/><label for='forceDownload'> Auto Download.</label></p>
+</body></html>
