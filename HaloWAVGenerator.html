@@ -1,16 +1,19 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>Halo WAV Generator</title><script>
 /*
- Wave file generator for GRC style Halo coils.
+ Wave file generator for GRC style Halo coils, as well as two different modes for using with ear clips.
 
- Generates WAV files to be 'played' on something that outputs audio signals on 3.5mm jack, that is connected to a GRC Halo coil, with the 3.5mm connector's L/R channel wired to Halo coil's ends.
+ Generates WAV files to be 'played' on something that outputs audio signals on 3.5mm jack, that is connected to a GRC Halo coil, or ear clips, with the 3.5mm connector's L/R channel wired to Halo coil's ends, or the L/R ear clip.
 
- Written by Vela Nanashi 2022.
+ Written by Vela Nanashi 2022-2023.
 
  Copyright/license: if you modify this other than just adding more patterns, please post the modification so others can use it on the grc nntp server, in group grc.health.tns, leave my name in this comment, and add your own too and say what you changed/improved.
 
  If you are only sharing patterns with others you don't have to post the whole file, just the text for the pattern codes.
 *//*
  Data structure description:
+ 
+ types:
+  name => patternsPrependString
  
  patterns:
   name => array { minSamples, maxSamples, line0, ... , lineN }
@@ -34,8 +37,9 @@
  
  to allow s to function for complex things 0 duration lines will be processed too, but only s will be checked and result in s being flipped, patterns will not be entered if they have 0 duration, as the logic for patterns is that when the duration given them in samples runs out they stop their current line and pop back up to the previous pattern. s will also always start as + when generating WAV.
  */
-
+var types = new Map();
 var patterns = new Map();
+var typeAndPatternCodes = "";
 
 function parseNumber(string, defaultValue = 0)
  {
@@ -108,12 +112,60 @@ function equalsIgnoreCase(s1, s2)
  return s1.localeCompare(s2, undefined, { sensitivity: 'base' }) === 0; 
  }
 
+function compileTypes()
+ {
+ types = new Map();//let garbage collector deal with the old map
+ let compiledTypesSelect = document.getElementById('compiledTypes');
+ compiledTypesSelect.length = 0;
+ let tcla = document.getElementById('typeCodes').value.split('\n');
+ tcla.push(":");//push a non type ":" line to terminate the last type
+ let tclalen = tcla.length;
+ 
+ types.set('/select a type',"");
+ let npo = document.createElement("option");
+ npo.text = '/select a type';
+ compiledTypesSelect.add(npo);
+ 
+ let key = "";
+ let value = [];
+ let state = 0;
+ 
+ for(let i = 0; i < tclalen; ++i)
+  {
+  let line = tcla[i].trim().replace(/\s+/g,' ');
+  let linelen = line.length;
+  if(linelen > 0)
+   {
+   if(equalsIgnoreCase(line[0],':'))
+    {//end old type and maybe start new type
+    if(state == 1)
+     {//end current type
+     npo = document.createElement("option");
+     npo.text = key;
+     compiledTypesSelect.add(npo);     
+     types.set(key, value.join("\n"));
+     state = 0;
+     key = "";
+     value = [];
+     }
+    if((state == 0) && (linelen > 1))
+     {//we have no current key
+     key = line.substring(1);//all except the : is the name
+     state = 1;
+     }
+    continue;
+    }
+   }
+  value.push(line);
+  }
+ }
+
 function compilePatterns()
  {
  patterns = new Map();//let garbage collector deal with the old map
  let compiledPatternsSelect = document.getElementById('compiledPatterns');
  compiledPatternsSelect.length = 0;
- let pcla = document.getElementById('patternCodes').value.split('\n');
+ let pcla = typeAndPatternCodes.split('\n');
  pcla.push("");//push an empty line at the end in case user does not add one
  let pclalen = pcla.length;
  
@@ -152,8 +204,8 @@ function compilePatterns()
      {
      npo = document.createElement("option");
      npo.text = currentPatternName;
+     compiledPatternsSelect.add(npo);
      }
-    compiledPatternsSelect.add(npo);
     currentPatternName = null;
     currentPattern = null;
     currentPatternMinDuration = null;
@@ -369,6 +421,24 @@ function getSelectedPatternName()
  {
  let compiledPatternsSelect = document.getElementById('compiledPatterns')
  return compiledPatternsSelect.options[compiledPatternsSelect.options.selectedIndex].text;
+ }
+ 
+function getSelectedTypeName()
+ {
+ let typesSelect = document.getElementById('compiledTypes')
+ return typesSelect.options[typesSelect.options.selectedIndex].text;
+ }
+
+function typeSelectionChanged()
+ {
+ let selectedTypeName = getSelectedTypeName()
+ if(!types.has(selectedTypeName))
+  {
+  return;
+  }
+ let type = types.get(selectedTypeName);
+ typeAndPatternCodes = type + "\n" + document.getElementById('patternCodes').value;
+ compilePatterns();
  }
 
 function patternSelectionChanged()
@@ -669,18 +739,18 @@ function loopPlaybackChanged()
  {
  document.getElementById('lastGeneratedPatternPlayback').loop = document.getElementById('loopPlayback').checked;
  }
- 
+
 </script><style>
 * { background: black; color: white; font: 32px Courier New, Courier, monospace; margin: 0; padding: 0; border: 0; }
 html, div { margin: 0; padding: 0; border: 0; }
 .b { cursor: pointer; background: #333333; border: solid 1px white; }
 input, select, textarea { border: solid 1px white; }
-#compiledPatterns { width: 1000px; }
+#compiledPatterns, #compiledTypes { width: 1000px; }
 #duration, #hz, #ms { text-align: right; width: 300px; }
 #minduration , #maxduration { background: #330033; }
 #forceDownload { }
 audio { width: 50%; }
-#instructions, #patternCodes { width: 100%; height: 512px; }
+#instructions, #typeCodes, #patternCodes { width: 100%; height: 512px; }
 p { margin: 0 0 1ch 0; padding: 0; border: 0; }
 p:first-child { padding-top: 1px; }
 p:last-child { margin-bottom: 0; }
@@ -689,16 +759,49 @@ p:last-child { margin-bottom: 0; }
 .sb input { z-index: 1; opacity: 0; position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; }
 .sb input + * { display: none; }
 .sb input:checked + * { display: block; position: relative; z-index: 2; background: #000; }
-</style><body onload='compilePatterns(); loopPlaybackChanged();'>
-<div class='sb'>Instructions: (click to show)<input type="checkbox"/><div><textarea id='instructions' readonly>
+</style><body onload='compileTypes(); loopPlaybackChanged();'><div class='sb'>0. Instructions: (click to show)<input type="checkbox"/><div><textarea id='instructions' readonly>
 /*
- Wave file generator for GRC style Halo coils, by Vela Nanashi 2022.
+ Wave file generator for GRC style Halo coils, by Vela Nanashi 2022-2023.
 
- Generates WAV files to be 'played' on something that outputs audio signals on 3.5mm jack, that is connected to a GRC Halo coil, with the 3.5mm connector's L/R channel wired to Halo coil's ends.
+ Generates WAV files to be 'played' on something that outputs audio signals on 3.5mm jack, that is connected to a GRC Halo coil, or earlobe clips, with the 3.5mm connector's L/R channel wired to Halo coil's ends, or the L/R earlobe clip.
  
  *//*
  
- The generated files will have the left and right channels have opposite values, or 0 on both channels, to generate the strongest possible field inside the Halo coils.
+ To use this you need javascript enabled, you can read the full source code for the javascript, css and html inside this file if you view the source, it has not been mangled, so it should be readable and obvious what it does.
+ 
+ If you change the Type Codes you need to press Compile Types, be aware that those changes will only be until you close the tab or hit refresh or restart the browser, if you want to make permanent changes you need to edit the html file.
+ 
+ If you change the Pattern Codes you need to press Compile Patterns, be aware that those changes will only be until you close the tab or hit refresh or restart the browser, if you want to make permanent changes you need to edit the html file.
+ 
+ Normal Use:
+ 1. Select the Type of pulses and delays you want to use.
+ 2. Select the Pattern you want to use.
+ 3. Decide how long you want the pattern to run for.
+ 4. Press Generate Pattern as WAVE file.
+ 5. Either play the generated wave file from the page, or download it with the link below the player, this download is from your browser so will not take any bandwidth, other than the bytes already used to load the html file.
+ 
+ Designing Patterns:
+ This is a new version of the Halo WAV Generator, that if you design the patterns cleverly you can make them work for different applications, by changing how the pulses and delays work. See the existing Type Codes for details on the three types I have defined.
+
+ I have defined a pattern d that I use for delays, and a pattern p that I use for pulses. Then in the pattern codes I replace all delays "nothing or d" with "p d" to load the delay pattern. I also use the pattern p for all pulses, "p p" in the pattern codes. The clever thing with this is that we can have different types of delay and pulse, you can also add other things that you later want to use and easily change in many patterns. 
+ 
+ Type codes:
+ You can create any number of types that can be selected before compile.
+ These are put at the top of the pattern codes before the compile happens
+ They can be used to define variants of patterns used to define what something does, such as different types of pulses, and delays.
+ These can be used to build patterns with specific timings that can change nature of how they are generated and work by selecting the different types.
+ If you don't want to use the type codes that should be fine, as nothing will be appended and all the patterns will be defined exactly in the pattern codes alone, if you want to just edit things on your own.
+ The colons must be the first thing on a line for the different named types, and when the last line is reached or the next :name it ends the current type and starts a new one, no processing is done to the lines between two :names or the last :name and end of the type codes, these will simply be prepended to the pattern codes before compile without any processing. Do not make any patterns in the pattern codes that have the first character be a : or it will treat it as a :name and break. Empty lines between :name and :name or end of type codes will be copied as is, as will comment lines, everything will be copied.
+ 
+ :name
+ pattern codes
+ 
+ :name2
+ pattern codes
+ 
+ *//*
+ 
+ The generated files will have the left and right channels have opposite values, or 0 on both channels, to generate the strongest possible field inside the Halo coils, or between earlobe clips.
  
  The sample rate will be limited to 8000hz. This means 1ms is 8 samples.
  
@@ -755,10 +858,10 @@ p:last-child { margin-bottom: 0; }
   a or b is the minimum or maximum (order can be reversed) duration that this line will generate when visited once, c and d are how big the steps are that you want to take on your way from a to b and b to a respectively.
  
  p name
-  includes a pattern with name once it may be cut if the parent pattern's time runs out
+  includes a pattern with name once its run may be cut short if the parent pattern's time runs out
  
  x number name
-  includes a pattern with name number times, they may be cut if the parent pattern's time runs out. If number is less than 2, it will convert it internally into p name.
+  includes a pattern with name number times, their runs may be cut short if the parent pattern's time runs out. If number is less than 2, it will convert it internally into p name.
  
  h
   hides the pattern it is included inside from the drop down list, allowing pattern makers to only show the patterns they want users to use in the list of patterns, this way you don't have to worry about how many subpatterns you need to accurately describe the pattern you want. 
@@ -818,20 +921,61 @@ p:last-child { margin-bottom: 0; }
  10hz
   100 p p
  
+ or
+ 
+ 10hz
+  10hz p p
+ 
  Be sure that you save the Pattern Codes you write into a text file somewhere, as this html file does not in any way have the ability to remember them for you.
  
  You can also edit the html file to keep your pattern codes in it.
  */</textarea></div></div>
-<p/>
-<div class='sb'>Pattern Codes: (click to show)<input type="checkbox"/><div><textarea id='patternCodes'>
-/p is a single polarity switching 2ms pulse followed by a 1 hour delay, it can be included in any other pattern, prefixed by how long the whole thing is supposed to last, saving on writing more complicated codes and figuring out the math for each pulse. It can also be changed to have more or less than 2ms total pulse length, by changing 1 s below to something else.
+<p/><div class='sb'>1.a. Type Codes: (click to show)<input type="checkbox"/><div><textarea id='typeCodes'>
+:Earlobe Clip, Not Halo, Constant Current ACDC
+d
+ h
+ 24: s
+
+p
+ h
+ p d
+
+:Earlobe Clip, Halo, 3ms pair of polarity switched pulses
+d
+ h
+ 24:
+ 
+p
+ h
+ 1 s
+ 1 s
+ 1 s
+ p d
+
+:Earlobe Clip, Halo, 2ms single polarity pulse, switches each pulse
+d
+ h
+ 24:
 
 p
  h
  0 s
  1 s
  1 s
- 24:
+ p d
+</textarea></div></div>
+<p/><div class='sb'>1.b. Pattern Codes: (click to show)<input type="checkbox"/><div><textarea id='patternCodes'>
+/p is a single polarity switching 2ms pulse followed by a 1 hour delay, it can be included in any other pattern, prefixed by how long the whole thing is supposed to last, saving on writing more complicated codes and figuring out the math for each pulse. It can also be changed to have more or less than 2ms total pulse length, by changing 1 s below to something else.
+
+Gamma3XBurst
+ h
+ sd 36hz 40hz ::::1 ::::1 p p
+ sd 36hz 40hz ::::1 ::::1 p p
+ sd 36hz 40hz ::::1 ::::1 p p
+ p d
+ 
+ThetaGamma
+ sd 4hz 8hz ::::1 ::::1 p Gamma3XBurst
 
 /0.5hz to 100hz is 0.5hz steps
 0.5hz
@@ -1438,7 +1582,7 @@ p
 B5
  h
  x 5 25hz
- 24:
+ p d
 
 BetaBurst1hz
  1hz p B5
@@ -1448,17 +1592,17 @@ BetaBurst0.5hz
 
 AlphaBurst
  x 5 12.5hz
- 600
+ 600 p d
 
 5x38hz
  h
  x 5 38hz
- :24
+ p d
 
 3x38hz
  h
  x 3 38hz
- :24
+ p d
 
 38hzBurst1hz
  1hz p 5x38hz
@@ -1468,22 +1612,22 @@ AlphaBurst
 
 iTBS38hz
  x 10 38hzBurst5hz
- 8000
+ 8000 p d
 
 38hzBurst5hz1hz
  x 3 38hzBurst5hz
- 400
+ 400 p d
 
 /approximation of iTBS, 8000hz does not allow 50us pulses, we use 2ms pulses
 
 iTBSBurst
  h
  x 3 50hz
- 140
+ 140 p d
 
 iTBS 
  x 10 iTBSBurst
- 8000
+ 8000 p d
 
 /batbatbatd
 
@@ -1531,17 +1675,19 @@ smr
 
 /remember that patterns need an empty line that is not a comment under them to know they have ended</textarea></div></div>
 <p/>
-<p><span onclick='compilePatterns();' class='b'>Compile Patterns</span></p>
-<p>Compiled Patterns:<select id='compiledPatterns' onchange='patternSelectionChanged();'></select></p>
+<p>2. <span onclick='compileTypes();' class='b'>Compile Types</span></p>
+<p>3. Compiled Types:<select id='compiledTypes' onchange='typeSelectionChanged();'></select></p>
+<p>4. <span onclick='compilePatterns();' class='b'>Compile Patterns</span></p>
+<p>5. Compiled Patterns:<select id='compiledPatterns' onchange='patternSelectionChanged();'></select></p>
 <p>Selected pattern takes between <span onclick='setMinDuration();' id='minduration'>00:00:00:000:0</span> and <span onclick='setMaxDuration();' id='maxduration'>00:00:00:000:0</span>, to run once, select how long you want to the wave file to be, below.</p>
-<p>Duration:<input id='duration' type='text' value='00:00:00:000:0'/> format hh:mm:ss:ms:samples.</p>
+<p>6. Duration:<input id='duration' type='text' value='00:00:00:000:0'/> format hh:mm:ss:ms:samples.</p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span onclick='addDuration("1:");' class='b'>+</span><span onclick='subtractDuration("1:");' class='b'>-</span>:<span onclick='addDuration(":1");' class='b'>+</span><span onclick='subtractDuration(":1");' class='b'>-</span>:<span onclick='addDuration("::1");' class='b'>+</span><span onclick='subtractDuration("::1");' class='b'>-</span>:<span onclick='addDuration(":::1");' class='b'>+</span><span onclick='subtractDuration(":::1");' class='b'>-</span>:<span onclick='addDuration("::::1");' class='b'>+</span><span onclick='subtractDuration("::::1");' class='b'>-</span> <span onclick='setDurationTo(0);' class='b'>0</span></p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span onclick='setDurationTo(1);' class='b'>1 min</span> <span onclick='setDurationTo(10);' class='b'>10 min</span> <span onclick='setDurationTo(30);' class='b'>30 min</span> <span onclick='setDurationTo(60);' class='b'>1 hour</span></p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span onclick='setDurationXAverage(10);' class='b'>x10</span> <span onclick='setDurationXAverage(50);' class='b'>x50</span> <span onclick='setDurationXAverage(100);' class='b'>x100</span> <span onclick='setDurationXAverage(500);' class='b'>x500</span> <span onclick='setDurationXAverage(1000);' class='b'>x1000</span> <span onclick='setDurationXAverage(5000);' class='b'>x5000</span> <span onclick='setDurationXAverage(10000);' class='b'>x10000</span> <span onclick='setDurationXAverage(50000);' class='b'>x50000</span></p>
-<p><span onclick='generateSelectedPatternAsWAV();' class='b'>Generate Pattern as WAVE file</span></p>
+<p>7. <span onclick='generateSelectedPatternAsWAV();' class='b'>Generate Pattern as WAVE file</span></p>
 <p>Converter between hz and ms:</p>
 <p>hz:<input id='hz' type='text' value='10.500'/> <span onclick='hz2ms();' class='b'>-&gt;</span> <span onclick='ms2hz();' class='b'>&lt;-</span> ms:<input id='ms' type='text' value='95.238'/></p>
-<p>Last Generated Pattern Audio:</p>
+<p>8. Last Generated Pattern Audio:</p>
 <p>Playback: <audio controls id='lastGeneratedPatternPlayback'></audio><input type='checkbox' id='loopPlayback' onchange='loopPlaybackChanged();' checked='true'/><label for='loopPlayback'> Loop Playback.</label> <input type='checkbox' id='autoPlay'/><label for='autoPlay'> Auto Play.</label></p>
 <p>Download: <a id='lastGeneratedPatternDownload'></a> <input type='checkbox' id='forceDownload'/><label for='forceDownload'> Auto Download.</label></p>
 </body></html>
