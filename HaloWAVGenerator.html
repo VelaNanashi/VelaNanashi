@@ -39,7 +39,7 @@
  */
 var types = new Map();
 var patterns = new Map();
-var typeAndPatternCodes = "";
+var typeCodes = "";
 
 function parseNumber(string, defaultValue = 0)
  {
@@ -165,7 +165,7 @@ function compilePatterns()
  patterns = new Map();//let garbage collector deal with the old map
  let compiledPatternsSelect = document.getElementById('compiledPatterns');
  compiledPatternsSelect.length = 0;
- let pcla = typeAndPatternCodes.split('\n');
+ let pcla = (typeCodes + "\n" + document.getElementById('patternCodes').value).split('\n');
  pcla.push("");//push an empty line at the end in case user does not add one
  let pclalen = pcla.length;
  
@@ -436,8 +436,7 @@ function typeSelectionChanged()
   {
   return;
   }
- let type = types.get(selectedTypeName);
- typeAndPatternCodes = type + "\n" + document.getElementById('patternCodes').value;
+ typeCodes = types.get(selectedTypeName);
  compilePatterns();
  }
 
@@ -940,6 +939,10 @@ p
  h
  p d
 
+f
+ h
+ 3 p p
+
 :Earlobe Clip, Halo, 3ms pair of polarity switched pulses
 d
  h
@@ -952,6 +955,9 @@ p
  1 s
  p d
 
+f
+ h
+
 :Earlobe Clip, Halo, 2ms single polarity pulse, switches each pulse
 d
  h
@@ -963,12 +969,17 @@ p
  1 s
  1 s
  p d
+
+f
+ h
+
 </textarea></div></div>
 <p/><div class='sb'>1.b. Pattern Codes: (click to show)<input type="checkbox"/><div><textarea id='patternCodes'>
 /p is a single polarity switching 2ms pulse followed by a 1 hour delay, it can be included in any other pattern, prefixed by how long the whole thing is supposed to last, saving on writing more complicated codes and figuring out the math for each pulse. It can also be changed to have more or less than 2ms total pulse length, by changing 1 s below to something else.
 
 Gamma3XBurst
  h
+ p f
  sd 36hz 40hz ::::1 ::::1 p p
  sd 36hz 40hz ::::1 ::::1 p p
  sd 36hz 40hz ::::1 ::::1 p p
@@ -1581,6 +1592,7 @@ ThetaGamma
 /approximation of beta burst
 B5
  h
+ p f
  x 5 25hz
  p d
 
@@ -1591,16 +1603,19 @@ BetaBurst0.5hz
  0.5hz p B5
 
 AlphaBurst
+ p f
  x 5 12.5hz
  600 p d
 
 5x38hz
  h
+ p f
  x 5 38hz
  p d
 
 3x38hz
  h
+ p f
  x 3 38hz
  p d
 
@@ -1615,6 +1630,7 @@ iTBS38hz
  8000 p d
 
 38hzBurst5hz1hz
+ p f
  x 3 38hzBurst5hz
  400 p d
 
@@ -1622,6 +1638,7 @@ iTBS38hz
 
 iTBSBurst
  h
+ p f
  x 3 50hz
  140 p d
 
@@ -1638,6 +1655,7 @@ bat
  p 5hz
 
 batbatbatd
+ p f
  x 3 bat
  p 1hz
 
@@ -1645,6 +1663,7 @@ batbatbatd
 
 gbat
  h
+ p f
  p 50hz
  p bat
 
