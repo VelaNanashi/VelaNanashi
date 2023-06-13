@@ -984,9 +984,69 @@ Gamma3XBurst
  sd 36hz 40hz ::::1 ::::1 p p
  sd 36hz 40hz ::::1 ::::1 p p
  p d
- 
-ThetaGamma
+
+DeltaGamma_3x36hz-40hz_0.5hz-4hz
+ h
+ sd 0.5hz 4hz :::4 :::4 p Gamma3XBurst
+
+DeltaGamma_3x36hz-40hz_0.5hz-4hz_16.40625m
+ :16.40625 p DeltaGamma_3x36hz-40hz_0.5hz-4hz
+
+ThetaGamma_3x36hz-40hz_4hz-8hz
+ h
  sd 4hz 8hz ::::1 ::::1 p Gamma3XBurst
+
+ThetaGamma_3x36hz-40hz_4hz-8hz_6.25m
+ :6.25 p ThetaGamma_3x36hz-40hz_4hz-8hz
+
+DeltaSweep_0.5hz-4hz
+ h
+ sd 0.5hz 4hz :::4 :::4 p p
+
+DeltaSweep_0.5hz-4hz_16.40625m
+ :16.40625 p DeltaSweep_0.5hz-4hz
+
+ThetaSweep_4hz-8hz
+ h
+ sd 4hz 8hz ::::1 ::::1 p p
+
+ThetaSweep_4hz-8hz_6.25m
+ :6.25 p ThetaSweep_4hz-8hz
+
+AlphaSweep_8hz-16hz
+ h
+ sd 8hz 16hz ::::1 ::::1 p p
+
+AlphaSweep_8hz-16hz_93.75s
+ ::93.75 p AlphaSweep_8hz-16hz
+
+SMRSweep_12hz-15hz
+ h
+ sd 12hz 16hz ::::1 ::::1 p p
+
+SMRSweep_12hz-15hz_19.933375s
+ ::19.933375 p SMRSweep_12hz-15hz
+
+BetaSweep_16hz-32hz
+ h
+ sd 16hz 32hz ::::1 ::::1 p p
+
+BetaSweep_16hz-32hz_23.4375s
+ ::23.4375 p BetaSweep_16hz-32hz
+
+GammaSweep_36hz-40hz
+ h
+ sd 36hz 40hz ::::1 ::::1 p p
+
+GammaSweep_36hz-40hz_1.1605s
+ ::1.1605 p GammaSweep_36hz-40hz
+
+GammaSweep_32hz-100hz
+ h
+ sd 32hz 100hz ::::1 ::::1 p p
+
+GammaSweep_32hz-100hz_7.0125s
+ ::7.0125 p GammaSweep_32hz-100hz
 
 /0.5hz to 100hz is 0.5hz steps
 0.5hz
@@ -1670,27 +1730,6 @@ gbat
 gbatgbatgbatd
  x 3 gbat
  p 1hz
-
-/random patterns
-delta0.5hzTo2.5hzRandom
- r 0.5hz 2.5hz p p
-
-/sweep patterns
-/smr ramping up from 13.5hz to 14.5hz in half a minute and back up in half a minute, select duration for it by editing the duration field or pressing one of the buttons for one of the fixed times after picking it in the dropdown.
-smr
- s 13.5hz 14.5hz :0.5 :0.5 p p
-
-5hzTo1hzIn30min
- h
- s 5hz 1hz :30 0 p p
-
-1hzTo0.5hzIn30min
- h
- s 1hz 0.5hz :30 0 p p
-
-5hzTo0.5hzSleepProgram1Hour
- :30 p 5hzTo1hzIn30min
- :30 p 1hzTo0.5hzIn30min
 
 /remember that patterns need an empty line that is not a comment under them to know they have ended</textarea></div></div>
 <p/>
