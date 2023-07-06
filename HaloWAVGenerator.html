@@ -740,11 +740,11 @@ function loopPlaybackChanged()
  }
 
 </script><style>
-* { background: black; color: white; font: 32px Courier New, Courier, monospace; margin: 0; padding: 0; border: 0; }
+* { background: black; color: white; font: 16px Courier New, Courier, monospace; margin: 0; padding: 0; border: 0; }
 html, div { margin: 0; padding: 0; border: 0; }
 .b { cursor: pointer; background: #333333; border: solid 1px white; }
 input, select, textarea { border: solid 1px white; }
-#compiledPatterns, #compiledTypes { width: 1000px; }
+#compiledPatterns, #compiledTypes { width: 100%; display: block; }
 #duration, #hz, #ms { text-align: right; width: 300px; }
 #minduration , #maxduration { background: #330033; }
 #forceDownload { }
@@ -930,6 +930,66 @@ p:last-child { margin-bottom: 0; }
  You can also edit the html file to keep your pattern codes in it.
  */</textarea></div></div>
 <p/><div class='sb'>1.a. Type Codes: (click to show)<input type="checkbox"/><div><textarea id='typeCodes'>
+:Earlobe Clip, Not Halo, ELP 51.2ms (not for frequencies above 10hz, do not use for SMR, Beta, Gamma)
+d
+ h
+ 24:
+
+p
+ h
+ 25.6 s
+ 25.6 s
+ 0 s
+ p d
+
+f
+ h
+
+:Earlobe Clip, Not Halo, MLP 6.25ms (frequencies up to 40hz)
+d
+ h
+ 24:
+
+p
+ h
+ 6.25 s
+ 6.25 s
+ 0 s
+ p d
+
+f
+ h
+
+:Earlobe Clip, Not Halo, ELP double inversion 51.2ms (not for frequencies above 10hz, do not use for SMR, Beta, Gamma)
+d
+ h
+ 24:
+
+p
+ h
+ 17.067 s
+ 17.067 s
+ 17.067 s
+ p d
+
+f
+ h
+
+:Earlobe Clip, Not Halo, MLP double inversion 6.25ms (for frequencies up to 40hz)
+d
+ h
+ 24:
+
+p
+ h
+ 2.08 s
+ 2.08 s
+ 2.08 s
+ p d
+
+f
+ h
+
 :Earlobe Clip, Not Halo, Constant Current ACDC
 d
  h
@@ -977,28 +1037,6 @@ f
 <p/><div class='sb'>1.b. Pattern Codes: (click to show)<input type="checkbox"/><div><textarea id='patternCodes'>
 /p is a single polarity switching 2ms pulse followed by a 1 hour delay, it can be included in any other pattern, prefixed by how long the whole thing is supposed to last, saving on writing more complicated codes and figuring out the math for each pulse. It can also be changed to have more or less than 2ms total pulse length, by changing 1 s below to something else.
 
-Gamma3XBurst
- h
- p f
- sd 36hz 40hz ::::1 ::::1 p p
- sd 36hz 40hz ::::1 ::::1 p p
- sd 36hz 40hz ::::1 ::::1 p p
- p d
-
-DeltaGamma_3x36hz-40hz_0.5hz-4hz
- h
- sd 0.5hz 4hz :::4 :::4 p Gamma3XBurst
-
-DeltaGamma_3x36hz-40hz_0.5hz-4hz_16.40625m
- :16.40625 p DeltaGamma_3x36hz-40hz_0.5hz-4hz
-
-ThetaGamma_3x36hz-40hz_4hz-8hz
- h
- sd 4hz 8hz ::::1 ::::1 p Gamma3XBurst
-
-ThetaGamma_3x36hz-40hz_4hz-8hz_6.25m
- :6.25 p ThetaGamma_3x36hz-40hz_4hz-8hz
-
 DeltaSweep_0.5hz-4hz
  h
  sd 0.5hz 4hz :::4 :::4 p p
@@ -1041,12 +1079,39 @@ GammaSweep_36hz-40hz
 GammaSweep_36hz-40hz_1.1605s
  ::1.1605 p GammaSweep_36hz-40hz
 
+Gamma3XBurst
+ h
+ p f
+ sd 36hz 40hz ::::1 ::::1 p p
+ sd 36hz 40hz ::::1 ::::1 p p
+ sd 36hz 40hz ::::1 ::::1 p p
+ p d
+
+DeltaGamma_3x36hz-40hz_0.5hz-4hz
+ h
+ sd 0.5hz 4hz :::4 :::4 p Gamma3XBurst
+
+DeltaGamma_3x36hz-40hz_0.5hz-4hz_16.40625m
+ :16.40625 p DeltaGamma_3x36hz-40hz_0.5hz-4hz
+
+ThetaGamma_3x36hz-40hz_4hz-8hz
+ h
+ sd 4hz 8hz ::::1 ::::1 p Gamma3XBurst
+
+ThetaGamma_3x36hz-40hz_4hz-8hz_6.25m
+ :6.25 p ThetaGamma_3x36hz-40hz_4hz-8hz
+
 GammaSweep_32hz-100hz
  h
  sd 32hz 100hz ::::1 ::::1 p p
 
 GammaSweep_32hz-100hz_7.0125s
  ::7.0125 p GammaSweep_32hz-100hz
+
+GammaSweepSMRSweepThetaGamma_5hz-40hz_6.60156458m
+ p GammaSweep_36hz-40hz_1.1605s
+ p SMRSweep_12hz-15hz_19.933375s
+ p ThetaGamma_3x36hz-40hz_4hz-8hz_6.25m
 
 /0.5hz to 100hz is 0.5hz steps
 0.5hz
