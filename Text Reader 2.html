@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Text Reader 2</title>
+<style>
+/*80 characters wide or attempt it in a kludge way*/
+* { color: white; background: black; font: 2vw monospace; hyphens: auto; }
+</style>
+<script>
+function scrolled() {
+ let textReader = document.getElementById('textReader');
+ localStorage.TextReaderScrollPosition = ((textReader.scrollTop / (textReader.scrollHeight - textReader.offsetHeight))*100);
+}
+function change() {
+ let textReader = document.getElementById('textReader');
+ localStorage.TextReaderText = textReader.value;
+}
+function load() {
+ let textReader = document.getElementById('textReader');
+ if(localStorage.getItem('TextReaderText') === null) { return; }
+ textReader.value = localStorage.TextReaderText;
+ textReader.scrollTop = localStorage.TextReaderScrollPosition * ((textReader.scrollHeight - textReader.offsetHeight)/100);
+}
+</script>
+</head><body style="height:98vh; width: 98vw;" onload='load();'>
+<textarea id='textReader' style='width: 98vw; height: 98vh;' onscroll='scrolled();' onchange='change();' onpropertychange='change();' onpaste='change();' oninput='change();'>Hi, this is version 2 of Text Reader, it now attempts to use 80 characters in width from edge to edge on the window it is loaded in, this is slightly larger than 32px on 1080p screen, but smaller if the area it has available is less.
+
+It will also attempt to store the text content and position scrolled of the text into local storage of your browser, not on the server, this will work also if you save the file locally to your computer and open it in your browser...
+
+Please do not trust this storage for anything important, many browsers will intentionally erase local storage for websites, and if your browser does so whatever you thought you saved here will be lost, content and position, so do not rely on it to save the position or content for you, it will attempt to, that is all.
+
+To get started and using this:
+Copy and paste the text you want to read here, you can choose to delete this text or not it is up to you, and paste over it or under it.
+
+If you do not like the spell checking you can right click on the control/text area and disable spell checking there in your browser, I don't want to remove the ability to have it on for you though.</textarea>
+</body></html>
