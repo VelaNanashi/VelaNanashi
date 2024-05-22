@@ -1,7 +1,7 @@
 <html><head><title>Trader Intersections</title><style>
 * { background: black; color: white; font: 16px monospace; }
 textarea { width: 90%; height: 24%; }
-.sb { border: 1px solid white; }
+.sb { border: 1px solid white; cursor: pointer; }
 </style><script>
 function onFileChangeWant()
  {
@@ -47,7 +47,7 @@ function computeIntersections()
   let key = value.normalize('NFKD').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
   if(list1.has(key)) { intersectionList.add(list1.get(key)); }//if
   }//for
- document.getElementById('iwanttheyhave').value = [...intersectionList].join('\n');
+ document.getElementById('iwanttheyhave').value = [...intersectionList].sort().join('\n');
  list1 = new Map();
  intersectionList = new Set();
  for(let value of document.getElementById('myhavelist').value.split('\n'))
@@ -60,7 +60,7 @@ function computeIntersections()
   let key = value.normalize('NFKD').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
   if(list1.has(key)) { intersectionList.add(list1.get(key)); }//if
   }//for
- document.getElementById('ihavetheywant').value = [...intersectionList].join('\n');
+ document.getElementById('ihavetheywant').value = [...intersectionList].sort().join('\n');
  }//computeIntersections
 </script></head><body>
 Load Want File: <input id='mywantfile' type='file' onchange='onFileChangeWant();'/> File Last Changed: <span id='filetimewant'></span>
@@ -73,17 +73,16 @@ Load Have File: <input id='myhavefile' type='file' onchange='onFileChangeHave();
 <details><summary>My Have List: (click to show/hide)</summary>
 <textarea id='myhavelist'></textarea></details>
 <p> </p>
-<details open><summary>Trader Have List: (click to hide/show)</summary>
+<details open><summary>Trader Have List: (click to show/hide)</summary>
 <textarea id='traderhavelist' style='height: 5%'></textarea></details>
 <p> </p>
-<details open><summary>Trader Want List: (click to hide/show)</summary>
+<details open><summary>Trader Want List: (click to show/hide)</summary>
 <textarea id='traderwantlist' style='height: 5%'></textarea></details>
 <p> </p>
-<p><span class='sb' onclick='computeIntersections();'>Compute Intersections</span></p>
-<details open><summary>I want from them: (click to hide/show)</summary>
+<p><span class='sb' onclick='computeIntersections();'>&nbsp; &nbsp; Press Me! &nbsp; &nbsp; </span></p>
+<details open><summary>Games I want from them: (click to show/hide)</summary>
 <textarea id='iwanttheyhave'></textarea></details>
 <p> </p>
-<details open><summary>I can offer them: (click to hide/show)</summary>
+<details open><summary>Games I can offer them: (click to show/hide)</summary>
 <textarea id='ihavetheywant'></textarea></details>
-<p> </p>
 </body></html>
