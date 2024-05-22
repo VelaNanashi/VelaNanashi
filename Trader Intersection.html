@@ -63,26 +63,27 @@ function computeIntersections()
  document.getElementById('ihavetheywant').value = [...intersectionList].join('\n');
  }//computeIntersections
 </script></head><body>
-Load Want File: <input id='mywantfile' type='file' onchange='onFileChangeWant();'/> File Time: <span id='filetimewant'></span>
+Load Want File: <input id='mywantfile' type='file' onchange='onFileChangeWant();'/> File Last Changed: <span id='filetimewant'></span>
 <p> </p>
-Load Have File: <input id='myhavefile' type='file' onchange='onFileChangeHave();'/> File Time: <span id='filetimehave'></span>
+Load Have File: <input id='myhavefile' type='file' onchange='onFileChangeHave();'/> File Last Changed: <span id='filetimehave'></span>
 <p> </p>
-<details><summary>My Want: (click to show/hide)</summary>
+<details><summary>My Want List: (click to show/hide)</summary>
 <textarea id='mywantlist'></textarea></details>
 <p> </p>
-<details><summary>My Have: (click to show/hide)</summary>
+<details><summary>My Have List: (click to show/hide)</summary>
 <textarea id='myhavelist'></textarea></details>
 <p> </p>
-<details open><summary>Trader Have: (click to hide/show)</summary>
-<textarea id='traderhavelist'></textarea></details>
+<details open><summary>Trader Have List: (click to hide/show)</summary>
+<textarea id='traderhavelist' style='height: 5%'></textarea></details>
 <p> </p>
-<details open><summary>Trader Want: (click to hide/show)</summary>
-<textarea id='traderwantlist'></textarea></details>
+<details open><summary>Trader Want List: (click to hide/show)</summary>
+<textarea id='traderwantlist' style='height: 5%'></textarea></details>
 <p> </p>
-<p><span class='sb' onclick='computeIntersections();'>Compute Instersections</span></p>
-<details open><summary>I have they want: (click to hide/show)</summary>
-<textarea id='ihavetheywant'></textarea></details>
-<p> </p><details open><summary>I want they have: (click to hide/show)</summary>
+<p><span class='sb' onclick='computeIntersections();'>Compute Intersections</span></p>
+<details open><summary>I want from them: (click to hide/show)</summary>
 <textarea id='iwanttheyhave'></textarea></details>
+<p> </p>
+<details open><summary>I can offer them: (click to hide/show)</summary>
+<textarea id='ihavetheywant'></textarea></details>
 <p> </p>
 </body></html>
