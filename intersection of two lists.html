@@ -1,0 +1,83 @@
+<html><head><title>intersection of two lists</title><style>
+* { background: black; color: white; font: 16px monospace; }
+textarea { width: 90%; height: 24%; }
+.sb { border: 1px solid white; }
+</style><script>
+function onFileChange()
+ {
+ var file = document.getElementById('list1file').files[0];
+ if (file)
+  {
+  document.getElementById('filetime').innerHTML = (new Date(file.lastModified)).toISOString();
+  }//if
+ }//onFileChange
+
+function loadFile()
+ {
+ var file = document.getElementById('list1file').files[0];
+ if (file)
+  {
+  var reader = new FileReader();
+  reader.onload = function (e)
+   {
+   document.getElementById('list1').value = e.target.result;
+   };
+  reader.readAsText(file);
+  }//if
+ }//loadFile
+
+function download(data, filename, type)
+ {
+ var file = new Blob([data], {type: type});
+ if (window.navigator.msSaveOrOpenBlob)
+  {// IE10+
+  window.navigator.msSaveOrOpenBlob(file, filename);
+  }
+  else
+  { // Others
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function()
+   {
+   document.body.removeChild(a);
+   window.URL.revokeObjectURL(url);
+   }, 0);
+  }//else
+ }//download
+
+function saveFile()
+ {
+ download(document.getElementById('list1').value, 'list1.txt', 'text/plain')
+ }//saveFile
+
+function computeIntersection()
+ {
+ let list1 = new Map();
+ let intersectionList = new Set();
+ for(let value of document.getElementById('list1').value.split('\n'))
+  {//note to self and interested readers: /([^0-9a-zA-Z]|[\u0300-\u036F])/g is redundant /([^0-9a-zA-Z])/g filters \u0300 to \u036F
+  let key = value.normalize('NFKD').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+  if(!list1.has(key)) { list1.set(key, value); }//if
+  }//for
+ for(let value of document.getElementById('list2').value.split('\n'))
+  {
+  let key = value.normalize('NFKD').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+  if(list1.has(key)) { intersectionList.add(list1.get(key)); }//if
+  }//for
+ document.getElementById('intersection').value = [...intersectionList].join('\n');
+ }//computeIntersection
+</script></head><body>
+List 1 File Load and Save: <input id='list1file' type='file' onchange='onFileChange();'/> File Time: <span id='filetime'></span> <span onclick='loadFile();' class='sb'>Load File</span> <span class='sb' onclick='saveFile()'>Save File (download to new name)</span>
+<p> </p>
+<details><summary>List 1: (click to show)</summary>
+<textarea id='list1'></textarea></details>
+<p> </p>
+<details><summary>List 2: (click to show)</summary>
+<textarea id='list2'></textarea></details>
+<p><span class='sb' onclick='computeIntersection();'>compute intersection</span></p>
+<details><summary>Intersection of List 1 and List 2: (click to show)</summary>
+<textarea id='intersection'></textarea></details>
+</body></html>
