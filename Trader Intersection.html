@@ -33,6 +33,12 @@ function onFileChangeHave()
   }//if
  }//onFileChangeHave
 
+function clearTraderJunk()
+ {
+ document.getElementById('traderhavelist').value = "";
+ document.getElementById('traderwantlist').value = "";
+ }//clearTraderJunk
+
 function computeIntersections()
  {
  let list1 = new Map();
@@ -79,7 +85,7 @@ Load Have File: <input id='myhavefile' type='file' onchange='onFileChangeHave();
 <details open><summary>Trader Want List: (click to show/hide)</summary>
 <textarea id='traderwantlist' style='height: 5%'></textarea></details>
 <p> </p>
-<p><span class='sb' onclick='computeIntersections();'>&nbsp; &nbsp; Press Me! &nbsp; &nbsp; </span></p>
+<p><span class='sb' onclick='computeIntersections();'>&nbsp; &nbsp; Spawn More Overlords! &nbsp; &nbsp; </span> &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  <span class='sb' onclick='clearTraderJunk();'>&nbsp; &nbsp; Nuclear Launch Detected! &nbsp; &nbsp; </span></p>
 <details open><summary>Games I want from them: (click to show/hide)</summary>
 <textarea id='iwanttheyhave'></textarea></details>
 <p> </p>
