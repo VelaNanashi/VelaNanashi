@@ -1,0 +1,117 @@
+<html><head><title>Trader Intersections</title><style>
+* { background: #378458; color: black; font: 16px Cambria; }
+textarea { width: 100%; height: 24%; border: 1px solid black;  }
+details { width: 90%; }
+summary { background: #2D6C48; }
+.sb { border: 1px solid black; cursor: pointer; }
+input::file-selector-button { background: #378458; color: black; cursor: pointer; }
+</style><script>
+function onFileChangeWant()
+ {
+ let file = document.getElementById('mywantfile').files[0];
+ if (file)
+  {
+  document.getElementById('filetimewant').innerHTML = (new Date(file.lastModified)).toLocaleString('no-NO', { dateStyle: 'short', timeStyle: 'short' });
+  let reader = new FileReader();
+  reader.onload = function (e)
+   {
+   document.getElementById('mywantlist').value = e.target.result;
+   };
+  reader.readAsText(file);
+  }//if
+ }//onFileChangeWant
+
+function onFileChangeHave()
+ {
+ let file = document.getElementById('myhavefile').files[0];
+ if (file)
+  {
+  document.getElementById('filetimehave').innerHTML = (new Date(file.lastModified)).toLocaleString('no-NO', { dateStyle: 'short', timeStyle: 'short' });
+  let reader = new FileReader();
+  reader.onload = function (e)
+   {
+   document.getElementById('myhavelist').value = e.target.result;
+   };
+  reader.readAsText(file);
+  }//if
+ }//onFileChangeHave
+
+function clearTraderJunk()
+ {
+ document.getElementById('traderhavelist').value = "";
+ document.getElementById('traderwantlist').value = "";
+ }//clearTraderJunk
+
+function computeIntersection(stringList1, stringList2)
+ {
+ let returnArray = new Array();
+ let list = new Array();
+ let i = 0;
+ let map2list = new Map();
+ for(let value of stringList1.split('\n'))
+  {
+  let key = value.normalize('NFKD').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+  if((key.length > 0) && (!map2list.has(key)))
+   {
+   let computeValues = new Array();
+   computeValues[0] = value;
+   computeValues[1] = 0;
+   list[i] = computeValues;
+   map2list.set(key, i);
+   ++i;
+   }//if
+  }//for
+ for(let value of stringList2.split('\n'))
+  {
+  let key = value.normalize('NFKD').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+  if((key.length > 0) && (map2list.has(key)))
+   {
+   list[map2list.get(key)][1] = 1;
+   }//if
+  }//for
+ for(value of list)
+  {
+  if(value[1] == 1)
+   {
+   returnArray.push(value[0]);
+   }//if
+  }//for
+ return returnArray.join('\n');
+ }//computeIntersection
+
+function computeIntersections()
+ {
+ document.getElementById('iwanttheyhave').value = computeIntersection(document.getElementById('mywantlist').value, document.getElementById('traderhavelist').value);
+ document.getElementById('ihavetheywant').value = computeIntersection(document.getElementById('myhavelist').value, document.getElementById('traderwantlist').value);
+ }//computeIntersections
+
+function sortIntersections()
+ {
+ document.getElementById('iwanttheyhave').value = document.getElementById('iwanttheyhave').value.split('\n').sort().join('\n');
+ document.getElementById('ihavetheywant').value = document.getElementById('ihavetheywant').value.split('\n').sort().join('\n');
+ }//sortIntersections
+</script></head><body>
+Load Want File: <input id='mywantfile' type='file' onchange='onFileChangeWant();' onclick='this.value=null'/> File Last Changed: <span id='filetimewant'></span>
+<p> </p>
+Load Have File: <input id='myhavefile' type='file' onchange='onFileChangeHave();' onclick='this.value=null'/> File Last Changed: <span id='filetimehave'></span>
+<p> </p>
+<details><summary>My Want List: (click to show/hide)</summary>
+<textarea id='mywantlist'></textarea></details>
+<p> </p>
+<details><summary>My Have List: (click to show/hide)</summary>
+<textarea id='myhavelist'></textarea></details>
+<p> </p>
+<details open><summary>Trader Have List: (click to show/hide)</summary>
+<textarea id='traderhavelist' style='height: 5%'></textarea></details>
+<p> </p>
+<details open><summary>Trader Want List: (click to show/hide)</summary>
+<textarea id='traderwantlist' style='height: 5%'></textarea></details>
+<p> </p>
+<div style="width: 90%; display: flex; justify-content: space-between"><span class='sb' onclick='computeIntersections();'>&nbsp; &nbsp; Spawn More Overlords! &nbsp; &nbsp; </span> <span class='sb' onclick='sortIntersections();'>&nbsp; &nbsp; Order! The House Will Come To Order! &nbsp; &nbsp; </span> <span class='sb' onclick='clearTraderJunk();'>&nbsp; &nbsp; Nuclear Launch Detected! &nbsp; &nbsp; </span></div>
+<p> </p>
+<details open><summary>Games I want from them: (click to show/hide)</summary>
+<textarea id='iwanttheyhave'></textarea></details>
+<p> </p>
+<details open><summary>Games I can offer them: (click to show/hide)</summary>
+<textarea id='ihavetheywant'></textarea></details>
+</body></html>
