@@ -90,6 +90,22 @@ function sortIntersections()
  document.getElementById('iwanttheyhave').value = document.getElementById('iwanttheyhave').value.split('\n').sort().join('\n');
  document.getElementById('ihavetheywant').value = document.getElementById('ihavetheywant').value.split('\n').sort().join('\n');
  }//sortIntersections
+
+function makeLink(stringToProcess)
+ {
+ let arr = stringToProcess.split('\n');
+ for(let i = 0, s = arr.length; i < s; ++i)
+  {
+  arr[i] = '<a target="_blank" href="https://gg.deals/search/?title=' + encodeURIComponent(arr[i]) + '">' + arr[i] + '</a><br/>';
+  }//for
+ return arr.join('\n');
+ }//makeLink
+
+function makeLinks()
+ {
+ document.getElementById('iwanttheyhavelinks').innerHTML = makeLink(document.getElementById('iwanttheyhave').value);
+ document.getElementById('ihavetheywantlinks').innerHTML = makeLink(document.getElementById('ihavetheywant').value);
+ }//makeLinks
 </script></head><body>
 Load Want File: <input id='mywantfile' type='file' onchange='onFileChangeWant();' onclick='this.value=null'/> File Last Changed: <span id='filetimewant'></span>
 <p> </p>
@@ -114,4 +130,12 @@ Load Have File: <input id='myhavefile' type='file' onchange='onFileChangeHave();
 <p> </p>
 <details open><summary>Games I can offer them: (click to show/hide)</summary>
 <textarea id='ihavetheywant'></textarea></details>
+<p> </p>
+<span class='sb' onclick='makeLinks();'>&nbsp; &nbsp; I sense a soul in search of answers. &nbsp; &nbsp; </span>
+<p> </p>
+<details open><summary>Games I want from them, links: (click to show/hide)</summary>
+<div id='iwanttheyhavelinks'></div></details>
+<p> </p>
+<details open><summary>Games I can offer them, links: (click to show/hide)</summary>
+<div id='ihavetheywantlinks'></div></details>
 </body></html>
